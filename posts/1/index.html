@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="generator" content="biber 2.0">
+        
+        <title>atheris 2.0: How libfuzzer collects coverage and more (1/3)</title>
+        
+            <link rel="stylesheet" href="/css/bootstrap.css"/>
+        
+            <link rel="stylesheet" href="/css/common.css"/>
+        
+            <link rel="stylesheet" href="/css/post.css"/>
+        
+            <link rel="stylesheet" href="/css/prism.css"/>
+        
+        
+            <script src="/js/jquery.min.js"></script>
+        
+            <script src="/js/bootstrap.bundle.min.js"></script>
+        
+            <script src="/js/init_bootstrap.js"></script>
+        
+            <script src="/js/prism.js"></script>
+        
+        
+        <style>
+            @font-face {
+              font-family: 'Material Icons';
+              font-style: normal;
+              font-weight: 400;
+              src: url(/fonts/MaterialIcons-Regular.ttf) format('truetype');
+            }
+            
+            @font-face {
+              font-family: 'Fira Code';
+              font-style: normal;
+              font-weight: 300;
+              font-display: swap;
+              src: url(/fonts/Fira-Code-300.ttf) format('truetype');
+            }
+            @font-face {
+              font-family: 'Fira Code';
+              font-style: normal;
+              font-weight: 400;
+              font-display: swap;
+              src: url(/fonts/Fira-Code-400.ttf) format('truetype');
+            }
+            @font-face {
+              font-family: 'Fira Code';
+              font-style: normal;
+              font-weight: 500;
+              font-display: swap;
+              src: url(/fonts/Fira-Code-500.ttf) format('truetype');
+            }
+            @font-face {
+              font-family: 'Fira Code';
+              font-style: normal;
+              font-weight: 600;
+              font-display: swap;
+              src: url(/fonts/Fira-Code-600.ttf) format('truetype');
+            }
+            @font-face {
+              font-family: 'Fira Code';
+              font-style: normal;
+              font-weight: 700;
+              font-display: swap;
+              src: url(/fonts/Fira-Code-700.ttf) format('truetype');
+            }
+        </style>
+    </head>
+    <body>
+        <div id="sidebar-container">
+            <div id="profile-container">
+                <a href="/index.html"><img src="/img/profile.png"></a>
+            </div>
+            <div id="author-container">
+                <a href="/index.html" id="blog-title">blog of z2_</a>
+            </div>
+            <div id="socials-container">
+                
+                <div class="social-entry">
+                    <a href="/keys/EEE0E5F387052DFB227DAE79B6DA5F15A20468AE.asc" target="_blank" class="social-link">
+                        <span><img class="social-icon" src="/img/email.png"></span>
+                        <span class="social-name">E-Mail</span>
+                    </a>
+                </div>
+                
+                <div class="social-entry">
+                    <a href="https://github.com/z2-2z" target="_blank" class="social-link">
+                        <span><img class="social-icon" src="/img/github.png"></span>
+                        <span class="social-name">Github</span>
+                    </a>
+                </div>
+                
+                <div class="social-entry">
+                    <a href="/feed.xml" target="_blank" class="social-link">
+                        <span><img class="social-icon" src="/img/feed.png"></span>
+                        <span class="social-name">RSS</span>
+                    </a>
+                </div>
+                
+            </div>
+        </div>
+        <div id="content-container" >
+            <div class="container">
+                <h1 id="post-title">atheris 2.0: How libfuzzer collects coverage and more (1/3)</h1>
+                <hr/>
+                <div id="metadata-container">
+                    <span class="metadata-icon material-icons">calendar_month</span>
+                    <span>17 Mar. 2022</span>
+                    <div id="category-listing">
+                        <span class="metadata-icon material-icons">local_offer</span>
+                        
+                            <a class="post-category" href="/category/fuzzing.html" target="_blank">FUZZING</a>&nbsp;
+                        
+                            <a class="post-category" href="/category/python.html" target="_blank">PYTHON</a>&nbsp;
+                        
+                            <a class="post-category" href="/category/libfuzzer.html" target="_blank">LIBFUZZER</a>&nbsp;
+                        
+                    </div>
+                </div>
+                <p>Welcome to the first part in this 3-part series about <a href="https://github.com/google/atheris/" target="_blank">atheris</a>, a popular python fuzzer.<br>This series explains the internals of atheris, which is a combination of</p><ol><li>Libfuzzer internals</li><li>Python bytecode internals</li><li>Advanced python topics</li></ol><p>This post will cover the first item: Internals of libfuzzer.</p><h3 class="heading">About libfuzzer</h3><p>Libfuzzer is besides AFL one of the most popular general-purpose fuzzers and is in contrast<br>to AFL not a standalone tool, but a library that can be invoked by anything that can call a C function.</p><p>One of its interfaces is the function <code class="language-none">LLVMFuzzerRunDriver</code>, which takes three<br>arguments:</p><pre data-start="1" class=""><code class="language-c">int LLVMFuzzerRunDriver(
+    int *argc,
+    char ***argv,
+    int (*UserCb)(const uint8_t *Data, size_t Size)
+);
+</code></pre><ul><li><code class="language-none">argc</code> and <code class="language-none">argv</code> contain options for libfuzzer like paths to corpora or dictionary files</li><li><code class="language-none">UserCb</code> is a function that will be repeatedly called with inputs from libfuzzer. If one of them<br>leads to a SIGSEGV or SIGABRT, libfuzzer will save it to disk and exit</li></ul><p>One of the huge advantages of this design is that everything is done in-memory. No interactions<br>with the kernel like starting a program or doing IPC are made. This makes libfuzzer very fast.</p><h3 class="heading">Coverage collection</h3><p>Libfuzzer is a coverage-guided fuzzer, meaning that it employs a genetic algorithm that discards<br>inputs that don’t yield new coverage and uses inputs that do yield new coverage as a basis<br>for further mutations. Coverage in this case means edge coverage. Libfuzzer is not only interested<br>in which basic blocks are executed but also in the order of their execution.<br>This is better than simple statement coverage because</p><div class="quote"><p>This aids the discovery of subtle fault conditions in the underlying code,<br>because security vulnerabilities are more often associated with unexpected<br>or incorrect state transitions than with merely reaching a new basic block.</p></div><p>- Michal Zalewski in <a href="https://github.com/google/AFL/blob/master/docs/technical_details.txt" target="_blank">AFLs technical details</a></p><p>Suppose we want to fuzz a library that contains the following toy function:</p><pre data-start="1" class=""><code class="language-c">bool is_ELF_file (char* file) {
+    if (*(int*)file == 0x464C457F /* 0x7F &quot;ELF&quot; */) {
+        return true;
+    } else {
+        return false;
+    }
+}
+</code></pre><p>Libfuzzer tracks coverage by inserting additional instructions at the beginning of every basic block.<br>So after compiling the above function with</p><pre><code class="language-none">clang -fsanitize=fuzzer -c is_ELF_file.c
+</code></pre><p>we get the following result:<br><center><img class="figure" src="is_ELF_file.png" alt=""></center></p><p>Besides the main application logic we can see that clang instrumented the code at 4 locations.<br>Each basic block got a prelude in which some array element gets incremented and a call to<br><code class="language-none">__sanitizer_cov_trace_const_cmp4</code> precedes the comparison.</p><p>The <code class="language-none">COUNTERS</code> array is a char array and contains hit counters that track how often a<br>basic block got executed.<br>Each basic block gets its own counter and libfuzzer inspects the counter region<br>after each run of <code class="language-none">UserCb</code> to inspect whether new paths have been taken.<br>If a counter jumps from zero to any number greater than zero the corresponding<br>input is saved for further mutations.<br>This is called <a href="https://clang.llvm.org/docs/SanitizerCoverage.html#inline-8bit-counters" target="_blank">inline 8-bit counters</a> and is one of multiple ways to<br>track coverage with LLVM.</p><p>A counter only has a width of 8 bits though, which means it will wrap around 256<br>but there are different ways to deal with this. Libfuzzers approach is to just ignore<br>the overflow for peformance reasons. A second approach is to use saturated counters<br>that once they reach 255 never change their value again. This however was proven inferior<br>to a third approach: <a href="https://github.com/AFLplusplus/AFLplusplus/blob/stable/instrumentation/README.llvm.md#8-neverzero-counters" target="_blank">never-zero counters</a>. When a counter overflows it is incremented<br>again enabling a clear distinction between executed and not executed basic blocks.<br>Never-zero counters improve path discovery at a very low cost but are currently enabled<br>only in AFL++, not in libfuzzer unfortunately.</p><h3 class="heading">Counter management</h3><p>When fuzzing it usually is the case that only one counter region is needed.<br>However libfuzzer supports adding additional counter regions during runtime.<br>This can e.g. happen when an instrumented shared object is loaded into memory<br>after program startup.<br>The mechanism to register a new counter region for libfuzzer to watch is to call<br>the function</p><pre data-start="1" class=""><code class="language-c">void __sanitizer_cov_8bit_counters_init (char* start, char* end) {
+  // [start,end) is the array of 8-bit counters created for the current DSO.
+}
+</code></pre><p>where <code class="language-none">start</code> is the address of the first counter and <code class="language-none">end</code> is the address of the<br>last counter + 1.</p><p>In fact this function is not only used by DSOs but also by the main program.<br>clang adds a special initialization function to the init_array called<br><code class="language-none">sancov.module_ctor_8bit_counters</code> that calls <code class="language-none">__sanitizer_cov_8bit_counters_init</code><br>with the appropriate values.</p><h3 class="heading">Data-flow tracing</h3><p>Libfuzzer does not collect only coverage information but also information about the<br>data-flow.<br>In the disassembly above we have seen that a call to <code class="language-none">__sanitizer_cov_trace_const_cmp4</code><br>precedes the comparison.<br>The arguments for this function are exactly those two values that are being compared.<br>Internally libfuzzer stores the constant passed as the first parameter and uses it<br>in upcoming mutations. This builds a dynamic dictionary at runtime and<br>improves fuzzing performance (in terms of coverage) immensely.</p><p>For example, if we add the following TestOneInput function to <code class="language-none">is_ELF_file.c</code></p><pre data-start="1" class=""><code class="language-c">int LLVMFuzzerTestOneInput(char* data, size_t len) {
+    if (len &gt;= 4) {
+        if (is_ELF_file(data)) {
+            abort(); // crash!
+        }
+    }
+    
+    return 0;
+}
+</code></pre><p>and compile it without data-flow tracing</p><pre><code class="language-none">clang -fsanitize=fuzzer is_ELF_file.c -fno-sanitize-coverage=trace-cmp
+</code></pre><p>we can see that even after 200 million tries it still couldn’t generate the<br>magic number and pass the check:</p><pre><code class="language-none">#268435456	pulse  cov: 5 ft: 5 corp: 2/5b lim: 4096 exec/s: 2274876 rss: 29Mb
+</code></pre><p>When we compile it with data-flow tracing however we can see this after<br>just 5 (!) executions:</p><pre><code class="language-none">#4	NEW    cov: 5 ft: 5 corp: 2/5b lim: 4 exec/s: 0 rss: 29Mb L: 4/4 MS: 2 CopyPart-CMP- DE: &quot;\x01\x00&quot;-
+==11072== ERROR: libFuzzer: deadly signal
+    #0 0x7f24d5a54533 in abort (/usr/lib/libc.so.6+0x2c533)
+    #1 0x55a43ca0c0a3 in LLVMFuzzerTestOneInput (a.out+0x7b0a3)
+    #2 0x55a43c9ab02b in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) (a.out+0x1a02b)
+    #3 0x55a43c99a2b7 in main (a.out+0x92b7)
+    #4 0x7f24d5a553c0 in __libc_start_main@GLIBC_2.2.5 (/usr/lib/libc.so.6+0x2d3c0)
+    #5 0x55a43c99a304 in _start (a.out+0x9304)
+</code></pre><h3 class="heading">Python context</h3><p>atheris uses libfuzzer with all its features we have discussed above.<br>It sets up a memory region for counters and tells libfuzzer about it<br>with <code class="language-none">__sanitizer_cov_8bit_counters_init</code>.<br>It starts libfuzzer with <code class="language-none">LLVMFuzzerRunDriver</code> and a callback function<br>that executes a given python function. And if the<br>target function throws an unhandled exception it aborts the process<br>such that libfuzzer can save the crash.</p><p>The only thing we haven’t talked about is how atheris tracks coverage<br>information and this will be the subject in upcoming posts.<br>The next post will discuss some python internals that are necessary<br>to understand atheris’ coverage collection method. Most importantly,<br>it will explain how python bytecode works.<br>So see you then and thanks for reading!</p><h3 class="heading">References</h3><ul><li><a href="https://www.llvm.org/docs/LibFuzzer.html" target="_blank">Libfuzzer docs</a></li><li><a href="https://clang.llvm.org/docs/SanitizerCoverage.html" target="_blank">SanitizerCoverage docs</a></li><li><a href="https://github.com/google/AFL/blob/master/docs/technical_details.txt" target="_blank">AFLs technical whitepaper</a></li><li><a href="https://github.com/AFLplusplus/AFLplusplus/blob/stable/instrumentation/README.llvm.md" target="_blank">AFL++s instrumentation</a></li></ul>
+            </div>
+        </div>
+    </body>
+</html>
