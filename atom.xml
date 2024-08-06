@@ -24,7 +24,7 @@
 </entry>
     
         <entry>
-    <title>Fuzzing Network Applications with AFL++ and libdesock (@ lolcads)</title>
+    <title>Fuzzing Network Applications with AFL++ and libdesock</title>
     <link href="https://lolcads.github.io/posts/2022/02/libdesock/"/>
     <published>2022-02-22T00:00:00Z</published>
     <updated>2022-02-22T00:00:00Z</updated>
@@ -34,7 +34,7 @@
 	</author>
     <content type="xhtml">
         <div xmlns="http://www.w3.org/1999/xhtml">
-            <a href="https://lolcads.github.io/posts/2022/02/libdesock/">Fuzzing Network Applications with AFL++ and libdesock (@ lolcads)</a><br/>
+            <a href="https://lolcads.github.io/posts/2022/02/libdesock/">Fuzzing Network Applications with AFL++ and libdesock</a><br/>
             <br/>
             <span>#fuzzing </span><span>#network </span><span>#afl </span><span>#research </span>
         </div>
