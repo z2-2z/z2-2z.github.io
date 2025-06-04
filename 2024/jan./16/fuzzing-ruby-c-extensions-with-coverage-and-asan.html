@@ -1,0 +1,86 @@
+<!DOCTYPE html><html prefix="og: https://ogp.me/ns#"lang=en><head><meta charset=UTF-8><meta name=viewport content="width=device-width, initial-scale=1.0"><meta name=keywords content="fuzzing, ruby, research"><meta name=description content="Fuzzing Ruby C Extensions with Coverage and ASAN"><meta name=author content=z2><meta property=og:title content="Fuzzing Ruby C Extensions with Coverage and ASAN"><meta property=og:type content=article><meta property=article:author content=https://github.com/z2-2z><meta property=og:site_name content="z2's blog"><meta property=og:url content=https://z2-2z.github.io/2024/jan./16/fuzzing-ruby-c-extensions-with-coverage-and-asan.html><meta property=og:description content="z2's blog"><meta proprety=og:image content=https://z2-2z.github.io/img/og-image.jpg><meta property=og:image:width content=1280><meta property=og:image:height content=720><meta property=og:image:type content=image/png><meta name=twitter:card content=summary_large_image><meta name=twitter:site content=@_z2_2z_><meta name=twitter:creator content=@_z2_2z_><meta name=twitter:title content="Fuzzing Ruby C Extensions with Coverage and ASAN"><meta name=twitter:description content="z2's blog"><meta name=twitter:image content=https://z2-2z.github.io/img/og-image.jpg><title>Fuzzing Ruby C Extensions with Coverage and ASAN</title><link rel=stylesheet href=/css/normalize.css><link rel=stylesheet href=/css/common.css><link rel=stylesheet href=/css/post.css><link href=/atom.xml type=application/atom+xml rel=alternate title="Atom feed"><style>@font-face {font-family:CodeFont;src:url("/fonts/code.woff2") format("woff2");font-weight:400;font-style:normal;font-display:block}</style><link rel=preload href=/css/atom-one-dark.min.css as=style onload=this.onload=null;this.rel='stylesheet'><noscript><link rel=stylesheet href=/css/atom-one-dark.min.css></noscript><script src=/js/highlight.min.js defer></script><script>document.addEventListener(`DOMContentLoaded`,()=>{hljs.highlightAll()})</script><script src=/js/hljs/python.min.js defer></script><script src=/js/hljs/ruby.min.js defer></script><script src=/js/hljs/c.min.js defer></script><script src=/js/hljs/plaintext.min.js defer></script><script src=/js/hljs/shell.min.js defer></script><body><div id=container><div id=item><div id=headline><h1>Fuzzing Ruby C Extensions with Coverage and ASAN</h1><div id=metadata><div id=categories><span class=category><a href=/archive.html?#category%3A%22fuzzing%22>#fuzzing</a></span><span class=category><a href=/archive.html?#category%3A%22ruby%22>#ruby</a></span><span class=category><a href=/archive.html?#category%3A%22research%22>#research</a></span></div><div id=date><span>16 jan. 2024</span></div></div></div><p>Hello there!<br><br class=blank-line> In my recent bug bounty endeavors, I needed to fuzz some ruby C extensions. However, that turned out to be more difficult and hacky than anticipated so I'm sharing my setup here. Maybe it helps some of y'all.<h2><a href=#starting-point><span id=starting-point>Starting Point</span></a></h2><p>Execute <code class="hljs code-inline">ruby extconf.rb</code> and generate the Makefile for your target. We will modify the Makefile in-place but won't touch the source of the extension.<h2><a href=#coverage-information><span id=coverage-information>Coverage Information</span></a></h2><p>Since C extensions are shared objects loaded dynamically via <a class=link href=https://www.man7.org/linux/man-pages/man3/dlopen.3.html target=_blank>dlopen(3)</a>, we need to pick a coverage mechanism that works with dynamic loading. Unfortunately, AFL++'s instrumentation is off the table because of<br><br class=blank-line><ol><li><b>Counter Collisions</b>: Since each shared object requires a separate linker invocation, the coverage counters start from zero in each binary and collide.<li><b>Automatic Forkserver</b>: AFL++'s runtime does not only handle coverage but also provides a forkserver that will start whenever the instrumented extension is imported. We want to have manual control over the forkserver instead.</ol><br class=blank-line><p>Thus, we choose one of LLVM's mechanisms and compile the extension with <a class=link href=https://clang.llvm.org/docs/SanitizerCoverage.html#tracing-pcs-with-guards target=_blank>SanitizerCoverage's PC guards</a> by adding <code class="hljs code-inline">-fsanitize-coverage=trace-pc-guard</code> to the CFLAGS. This inserts calls to <code class="hljs code-inline">__sanitizer_cov_trace_pc_guard_init(uint32_t *start, uint32_t *stop)</code> and <code class="hljs code-inline">__sanitizer_cov_trace_pc_guard(uint32_t *guard)</code>.<br>We handle these calls in a separate extension but more on that later.<h2><a href=#address-sanitizer><span id=address-sanitizer>Address Sanitizer</span></a></h2><p>To make ASAN work with shared libraries we need to add <code class="hljs code-inline">-fsanitize=address -shared-libasan</code> to the CFLAGS. This way, the ASAN runtime will be provided as a dynamic dependency of the binary in <code class="hljs code-inline">libclang_rt.asan-x86_64.so</code>, instead of being statically linked into the application. The downside is that we must preload the runtime when executing the ruby interpreter. If we don't preload it, the interceptors cannot function properly, so we have to set<br><br class=blank-line><pre class=code-block><code class="hljs language-plaintext">LD_PRELOAD=/path/to/libclang_rt.asan-x86_64.so
+</code></pre><h2><a href=#fighting-address-sanitizer><span id=fighting-address-sanitizer>Fighting Address Sanitizer</span></a></h2><p>Unfortunately, usage of ASAN has multiple side effects in our fuzzing setup.<br><br class=blank-line> Firstly, the garbage collector goes completely ham for reasons I do not know. Ruby's GC aggressively frees allocated chunks even when properly marked as in-use (?). I suspect this is due to the high memory pressure ASAN exerts with its 20TB of overhead. This leads to a lot of false-positive use-after-frees that do not happen otherwise, so we need to disable GC in our fuzz target via <code class="hljs code-inline">GC.disable</code>.<br><br class=blank-line> Secondly, ASAN has its own implementation of <code class="hljs code-inline">__sanitizer_cov_trace_pc_guard_init</code> and <code class="hljs code-inline">__sanitizer_cov_trace_pc_guard</code>. Since we preload the runtime, the coverage functions get bound to the ASAN runtime, and we lose the ability to handle them ourselves. The solution for this is to simply rename the relevant symbol exports. The following script directly overwrites their <code class="hljs code-inline">.dynsym</code> entries and changes the first letter to an <code class="hljs code-inline">X</code>.<br><br class=blank-line><pre class=code-block><code class="hljs language-python">#!/usr/bin/env python3
+
+import sys
+
+def main(source, symbols):
+    with open(source, "rb") as f:
+        content = bytearray(f.read())
+
+    for symbol in sorted(symbols, key=lambda x: len(x), reverse=True):
+        symbol = bytes(symbol, "ascii")
+
+        for i in range(0, len(content) - len(symbol)):
+            part = content[i:i + len(symbol)]
+
+            if part == symbol:
+                print(f"Found {symbol} at {i}")
+                content[i] = ord("X")
+
+    with open(source, "wb") as f:
+        f.write(content)
+
+if __name__ == "__main__":
+    main(sys.argv[1], sys.argv[2:])
+</code></pre><h2><a href=#fuzzer-communication><span id=fuzzer-communication>Fuzzer Communication</span></a></h2><p>The final puzzle piece is the communication with the fuzzer. We need to communicate<br><br class=blank-line><ol><li>Coverage information that comes in via <code class="hljs code-inline">__sanitizer_cov_trace_pc_guard</code><li>Forkserver information whenever we attempt a new run</ol><br class=blank-line><p>We implement all that in a new extension called <code class="hljs code-inline">forkserver</code>. As a first step we connect to AFL++'s shared memory channel via:<br><br class=blank-line><pre class=code-block><code class="hljs language-c">unsigned char* shm = NULL;
+size_t shm_size = 0;
+
+void setup_shm (void) {
+    char* var = getenv("__AFL_SHM_ID");
+    if (var) {
+        int id = atoi(var);
+        shm = shmat(id, NULL, 0);
+        
+        shm[0] = 1;
+
+        var = getenv("AFL_MAP_SIZE");
+        if (var) {
+            shm_size = atoi(var);
+        } else {
+            shm_size = 65536;
+        }
+    }
+}
+</code></pre><br class=blank-line><p>Then, we populate the coverage bitmap by assigning each PC guard an index into the coverage map:<br><br class=blank-line><pre class=code-block><code class="hljs language-c">uint32_t sancov_cursor = 1;
+
+void __sanitizer_cov_trace_pc_guard_init (uint32_t *start,  uint32_t *stop) {
+    for (uint32_t* i = start; i < stop; ++i) {
+        *i = sancov_cursor++;
+    }
+}
+
+void __sanitizer_cov_trace_pc_guard (uint32_t *guard) {
+    size_t idx = *guard;
+    
+    if (idx < shm_size) {
+        shm[idx]++;
+    }
+}
+</code></pre><br class=blank-line><p>Note that this supports multiple instrumented extensions. Finally, we define a method in our module that starts the forkserver:<br><br class=blank-line><pre class=code-block><code class="hljs language-c">VALUE launch_forkserver (VALUE self) {
+    (void) self;
+
+    setup_shm();
+    forkserver(); // not shown here but it does the same as afl-compiler-rt.o.c
+
+    return Qnil;
+}
+
+// For the ruby interpreter:
+void Init_forkserver (void) {
+    rb_define_global_function("launch_forkserver", launch_forkserver, 0);
+}
+</code></pre><h2><a href=#fuzz-target><span id=fuzz-target>Fuzz Target</span></a></h2><p>Let's combine everything from above and create our fuzz target now:<br><br class=blank-line><pre class=code-block><code class="hljs language-ruby"># Handles coverage and communication with the fuzzer:
+require "./forkserver"
+
+# Our instrumented target(s):
+require "instrumented_target"
+
+# GC doesn't seem to work with ASAN so disable it:
+GC.disable 
+
+# The setup is done so launch the forkserver now:
+launch_forkserver
+
+# Then we can read input from stdin and do stuff with it...
+</code></pre><br class=blank-line><p>And start the fuzzer:<br><br class=blank-line><pre class=code-block><code class="hljs language-shell">AFL_PRELOAD=/path/to/libclang_rt.asan-x86_64.so afl-fuzz -i corpus/ -o output/ -- ruby our-fuzz-target.rb
+</code></pre><br class=blank-line><p>Thanks for reading!<hr><div id=footer-meta><span id=footer-blog><a href=/>z2's blog</a></span></div><br></div></div>

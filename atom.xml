@@ -3,11 +3,29 @@
     <title>z2's blog</title>
     <link href="https://z2-2z.github.io/atom.xml" rel="self"/>
     <link href="https://z2-2z.github.io/"/>
-    <updated>2024-01-16T00:00:00Z</updated>
+    <updated>2025-05-21T00:00:00Z</updated>
+    
+        <entry>
+    <title>How to build a high-performance network fuzzer with LibAFL and libdesock</title>
+    <link href="https://lolcads.github.io/posts/2025/05/high_performance_network_fuzzing/"/>
+    <published>2025-05-21T00:00:00Z</published>
+    <updated>2025-05-21T00:00:00Z</updated>
+    <summary></summary>
+    <author>
+			<name>z2</name>
+	</author>
+    <content type="xhtml">
+        <div xmlns="http://www.w3.org/1999/xhtml">
+            <a href="https://lolcads.github.io/posts/2025/05/high_performance_network_fuzzing/">How to build a high-performance network fuzzer with LibAFL and libdesock</a><br/>
+            <br/>
+            <span>#fuzzing </span><span>#network </span><span>#libafl </span><span>#research </span>
+        </div>
+    </content>
+</entry>
     
         <entry>
     <title>Fuzzing Ruby C Extensions with Coverage and ASAN</title>
-    <link href="https://z2-2z.github.io/2024/jan/16/fuzzing-ruby-c-extensions-with-coverage-and-asan.html"/>
+    <link href="https://z2-2z.github.io/2024/jan./16/fuzzing-ruby-c-extensions-with-coverage-and-asan.html"/>
     <published>2024-01-16T00:00:00Z</published>
     <updated>2024-01-16T00:00:00Z</updated>
     <summary></summary>
@@ -16,7 +34,7 @@
 	</author>
     <content type="xhtml">
         <div xmlns="http://www.w3.org/1999/xhtml">
-            <a href="https://z2-2z.github.io/2024/jan/16/fuzzing-ruby-c-extensions-with-coverage-and-asan.html">Fuzzing Ruby C Extensions with Coverage and ASAN</a><br/>
+            <a href="https://z2-2z.github.io/2024/jan./16/fuzzing-ruby-c-extensions-with-coverage-and-asan.html">Fuzzing Ruby C Extensions with Coverage and ASAN</a><br/>
             <br/>
             <span>#fuzzing </span><span>#ruby </span><span>#research </span>
         </div>
@@ -43,7 +61,7 @@
     
         <entry>
     <title>DownUnderCTF: My first echo server</title>
-    <link href="https://z2-2z.github.io/2020/sep/20/downunderctf-my-first-echo-server.html"/>
+    <link href="https://z2-2z.github.io/2020/sep./20/downunderctf-my-first-echo-server.html"/>
     <published>2020-09-20T00:00:00Z</published>
     <updated>2020-09-20T00:00:00Z</updated>
     <summary></summary>
@@ -52,7 +70,7 @@
 	</author>
     <content type="xhtml">
         <div xmlns="http://www.w3.org/1999/xhtml">
-            <a href="https://z2-2z.github.io/2020/sep/20/downunderctf-my-first-echo-server.html">DownUnderCTF: My first echo server</a><br/>
+            <a href="https://z2-2z.github.io/2020/sep./20/downunderctf-my-first-echo-server.html">DownUnderCTF: My first echo server</a><br/>
             <br/>
             <span>#ctf </span><span>#writeup </span><span>#pwn </span>
         </div>
@@ -61,7 +79,7 @@
     
         <entry>
     <title>NahamconCTF: SaaS - Syscall as a Service</title>
-    <link href="https://z2-2z.github.io/2020/jun/14/nahamconctf-saas-syscall-as-a-service.html"/>
+    <link href="https://z2-2z.github.io/2020/jun./14/nahamconctf-saas-syscall-as-a-service.html"/>
     <published>2020-06-14T00:00:00Z</published>
     <updated>2020-06-14T00:00:00Z</updated>
     <summary></summary>
@@ -70,7 +88,7 @@
 	</author>
     <content type="xhtml">
         <div xmlns="http://www.w3.org/1999/xhtml">
-            <a href="https://z2-2z.github.io/2020/jun/14/nahamconctf-saas-syscall-as-a-service.html">NahamconCTF: SaaS - Syscall as a Service</a><br/>
+            <a href="https://z2-2z.github.io/2020/jun./14/nahamconctf-saas-syscall-as-a-service.html">NahamconCTF: SaaS - Syscall as a Service</a><br/>
             <br/>
             <span>#ctf </span><span>#writeup </span><span>#pwn </span>
         </div>
@@ -79,7 +97,7 @@
     
         <entry>
     <title>DawgCTF: Where we roppin boys?</title>
-    <link href="https://z2-2z.github.io/2020/apr/16/dawgctf-where-we-roppin-boys.html"/>
+    <link href="https://z2-2z.github.io/2020/apr./16/dawgctf-where-we-roppin-boys.html"/>
     <published>2020-04-16T00:00:00Z</published>
     <updated>2020-04-16T00:00:00Z</updated>
     <summary></summary>
@@ -88,7 +106,7 @@
 	</author>
     <content type="xhtml">
         <div xmlns="http://www.w3.org/1999/xhtml">
-            <a href="https://z2-2z.github.io/2020/apr/16/dawgctf-where-we-roppin-boys.html">DawgCTF: Where we roppin boys?</a><br/>
+            <a href="https://z2-2z.github.io/2020/apr./16/dawgctf-where-we-roppin-boys.html">DawgCTF: Where we roppin boys?</a><br/>
             <br/>
             <span>#ctf </span><span>#writeup </span><span>#pwn </span>
         </div>
