@@ -3,7 +3,25 @@
     <title>z2's blog</title>
     <link href="https://z2-2z.github.io/atom.xml" rel="self"/>
     <link href="https://z2-2z.github.io/"/>
-    <updated>2025-05-21T00:00:00Z</updated>
+    <updated>2025-07-30T00:00:00Z</updated>
+    
+        <entry>
+    <title>Installing Arch Linux With Full Disk Encryption</title>
+    <link href="https://z2-2z.github.io/2025/jul/30/installing-arch-linux-with-full-disk-encryption.html"/>
+    <published>2025-07-30T00:00:00Z</published>
+    <updated>2025-07-30T00:00:00Z</updated>
+    <summary></summary>
+    <author>
+			<name>z2</name>
+	</author>
+    <content type="xhtml">
+        <div xmlns="http://www.w3.org/1999/xhtml">
+            <a href="https://z2-2z.github.io/2025/jul/30/installing-arch-linux-with-full-disk-encryption.html">Installing Arch Linux With Full Disk Encryption</a><br/>
+            <br/>
+            <span>#misc </span>
+        </div>
+    </content>
+</entry>
     
         <entry>
     <title>How to build a high-performance network fuzzer with LibAFL and libdesock</title>
